@@ -32,8 +32,8 @@ using namespace std;
 
 IUIAutomation* _automation;
 double WIDTH, HEIGHT, WINDOW_LEFT, WINDOW_TOP;
-string FOLDER_PATH = "d:\\images";
-string FILENAME = "App_Screenshot.jpg";
+wstring FOLDER_PATH;
+wstring curTime;
 
 void errhandler(string s, HWND hwnd)
 {}
@@ -196,7 +196,7 @@ int GetEncoderClsid(const WCHAR* format, CLSID* pClsid)
 }
 
 // Convert the Screenshot Bitmap to JPG to reduce size reducing latency of the API Call
-void convertToJPG(string filepath)
+void convertToJPG(wstring filepath)
 {
     using namespace Gdiplus;
 
@@ -209,7 +209,7 @@ void convertToJPG(string filepath)
     CLSID encoderClsid;
     Status stat;
     Image* image = Image::FromFile(wfilename.c_str());
-    string dest_path = filepath.substr(0, filepath.size() - 10) + ".jpg";
+    wstring dest_path = filepath.substr(0, filepath.size() - 10) + L"\\" + curTime + L".jpg";
 
     // Get the CLSID of the PNG encoder.
     GetEncoderClsid(L"image/jpeg", &encoderClsid);
@@ -250,7 +250,13 @@ void captureScreenShot(HWND hwnd)
     HGDIOBJ old_obj = SelectObject(hDC, hBitmap);
     BOOL bRet = BitBlt(hDC, 0, 0, (int)w, (int)h, hScreen, (int)x1, (int)y1, SRCCOPY);
 
-    string filename = FOLDER_PATH + "\\" + FILENAME.substr(0, FILENAME.size() - 4) + "Bitmap.bmp";
+    wchar_t dir[1024];
+    GetCurrentDirectory(1024, dir);
+    FOLDER_PATH.assign(dir);
+    FOLDER_PATH.append(L"\\UIA_Training_Data\\");
+    CreateDirectory(FOLDER_PATH.c_str(), nullptr);
+    curTime = std::to_wstring(GetTickCount64());
+    wstring filename = FOLDER_PATH + L"Bitmap.bmp";
     std::wstring stemp = std::wstring(filename.begin(), filename.end());
     LPCTSTR sw = stemp.c_str();
 
@@ -260,6 +266,7 @@ void captureScreenShot(HWND hwnd)
     // Convert to JPG
     convertToJPG(filename);
 
+    DeleteFile(filename.c_str());
 
     // clean up
     SelectObject(hDC, old_obj);
@@ -304,8 +311,122 @@ HWND TryFindWindowNow(DWORD m_processId)
     return nullptr;
 }
 
+void GenerateUIATree()
+{
+    wil::com_ptr<IUIAutomationElement> element;
+    //DWORD processId = GetForegroundWindow();
+    HWND handle = GetForegroundWindow();
 
-int main()
+    captureScreenShot(handle);
+
+    HRESULT hr = _automation->ElementFromHandle(handle, &element);
+    /*if (FAILED(hr))
+    {
+        wprintf(L"Failed to ElementFromHandle, HR: 0x%08x\n\n", hr);
+    }*/
+    if (element != NULL)
+    {
+        wil::com_ptr<IUIAutomationCondition> conditionList;
+        wil::unique_variant control_type;
+        control_type.vt = VT_I4;
+        control_type.lVal = UIA_ListControlTypeId;
+        _automation->CreatePropertyCondition(UIA_ControlTypePropertyId, control_type, &conditionList);
+
+        wil::com_ptr<IUIAutomationCondition> conditionButton;
+        wil::unique_variant control_type1;
+        control_type1.vt = VT_I4;
+        control_type1.lVal = UIA_ButtonControlTypeId;
+        _automation->CreatePropertyCondition(UIA_ControlTypePropertyId, control_type1, &conditionButton);
+
+        wil::com_ptr<IUIAutomationCondition> conditionImage;
+        wil::unique_variant control_type2;
+        control_type2.vt = VT_I4;
+        control_type2.lVal = UIA_ImageControlTypeId;
+        _automation->CreatePropertyCondition(UIA_ControlTypePropertyId, control_type2, &conditionImage);
+
+        wil::com_ptr<IUIAutomationCondition> condition;
+        _automation->CreateOrCondition(conditionList.get(), conditionButton.get(), &condition);
+
+        wil::com_ptr<IUIAutomationCondition> finalcondition;
+        _automation->CreateOrCondition(conditionImage.get(), condition.get(), &finalcondition);
+
+        wil::com_ptr<IUIAutomationCacheRequest> cacheRequest;
+        _automation->CreateCacheRequest(&cacheRequest);
+        cacheRequest->AddProperty(UIA_NamePropertyId);
+        cacheRequest->AddProperty(UIA_BoundingRectanglePropertyId);
+        cacheRequest->AddProperty(UIA_ControlTypePropertyId);
+
+        wil::com_ptr<IUIAutomationElementArray> foundElements;
+
+        element->FindAllBuildCache(TreeScope_Descendants, finalcondition.get(), cacheRequest.get(), &foundElements);
+
+        int length = 0;
+        foundElements->get_Length(&length);
+        string temp = "";
+        vector<string> list;
+        for (int i = 0; i < length; ++i)
+        {
+            temp = "";
+            wil::com_ptr<IUIAutomationElement> element;
+            foundElements->GetElement(i, &element);
+            RECT rectangle;
+            BSTR name;
+            CONTROLTYPEID id;
+            element->get_CachedBoundingRectangle(&rectangle);
+            element->get_CachedName(&name);
+            element->get_CachedControlType(&id);
+
+            std::wstring ws(name, SysStringLen(name));
+            string str = string(ws.begin(), ws.end());
+
+
+            temp = to_string(id) + " " + str + " " + to_string(rectangle.left) + " " + to_string(rectangle.top) + " " + to_string(rectangle.right) + " " + to_string(rectangle.bottom);
+
+            list.push_back(temp);
+        }
+
+
+        wstring uiaTreePath = FOLDER_PATH + curTime + L".txt";
+        ofstream fw(uiaTreePath, std::ofstream::out);
+
+        if (fw.is_open())
+        {
+            //store array contents to text file
+            for (int i = 0; i < list.size(); i++) {
+                fw << list[i] << "\n";
+            }
+            fw.close();
+
+        }
+        cout << "Processing finished. Files dumped at location:";
+        wcout << uiaTreePath << endl<<endl;
+    }
+    else
+    {
+        cout << "No element found" << endl;
+    }
+
+}
+
+int ProcessInput(int input)
+{
+    switch (input)
+    {
+    case 1:
+        cout << "Sleep for 5 seconds. Please change the foreground window for which you want the UIA tree" << endl;
+        Sleep(5000);
+        GenerateUIATree();
+        return 1;
+    case 2:
+        cout << "Exiting" << endl;
+        return 0;
+    default:
+        cout<<"Incorrect Input: Please try again"<<endl;
+        return 1;
+    }
+}
+
+int __cdecl main()
 {
     // Initialize COM before using UI Automation
     HRESULT hr = CoInitialize(NULL);
@@ -317,98 +438,18 @@ int main()
     hr = CoCreateInstance(__uuidof(CUIAutomation8), NULL,
         CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&_automation));
 
-    //Provide a valid process ID
-    
-    //DWORD processId = 12496;
+    // Save thsi process handle so that we can make this foreground window
+    HWND ownHandle = GetForegroundWindow();
+    int ret = 0,input =0;
     do
     {
-        wil::com_ptr<IUIAutomationElement> element;
-        DWORD processId = 13700;
-        HWND handle = TryFindWindowNow(processId);
-
-        captureScreenShot(handle);
-
-        hr = _automation->ElementFromHandle(handle, &element);
-        /*if (FAILED(hr))
-        {
-            wprintf(L"Failed to ElementFromHandle, HR: 0x%08x\n\n", hr);
-        }*/
-        if (element != NULL)
-        {
-            wil::com_ptr<IUIAutomationCondition> conditionList;
-            wil::unique_variant control_type;
-            control_type.vt = VT_I4;
-            control_type.lVal = UIA_ListControlTypeId;
-            _automation->CreatePropertyCondition(UIA_ControlTypePropertyId, control_type, &conditionList);
-
-            wil::com_ptr<IUIAutomationCondition> conditionButton;
-            wil::unique_variant control_type1;
-            control_type1.vt = VT_I4;
-            control_type1.lVal = UIA_ButtonControlTypeId;
-            _automation->CreatePropertyCondition(UIA_ControlTypePropertyId, control_type1, &conditionButton);
-
-            wil::com_ptr<IUIAutomationCondition> conditionImage;
-            wil::unique_variant control_type2;
-            control_type2.vt = VT_I4;
-            control_type2.lVal = UIA_ImageControlTypeId;
-            _automation->CreatePropertyCondition(UIA_ControlTypePropertyId, control_type2, &conditionImage);
-
-            wil::com_ptr<IUIAutomationCondition> condition;
-            _automation->CreateOrCondition(conditionList.get(), conditionButton.get(), &condition);
-
-            wil::com_ptr<IUIAutomationCondition> finalcondition;
-            _automation->CreateOrCondition(conditionImage.get(), condition.get(), &finalcondition);
-
-            wil::com_ptr<IUIAutomationCacheRequest> cacheRequest;
-            _automation->CreateCacheRequest(&cacheRequest);
-            cacheRequest->AddProperty(UIA_NamePropertyId);
-            cacheRequest->AddProperty(UIA_BoundingRectanglePropertyId);
-            cacheRequest->AddProperty(UIA_ControlTypePropertyId);
-
-            wil::com_ptr<IUIAutomationElementArray> foundElements;
-
-            element->FindAllBuildCache(TreeScope_Descendants, finalcondition.get(), cacheRequest.get(), &foundElements);
-
-            int length = 0;
-            foundElements->get_Length(&length);
-            string temp = "";
-            vector<string> list;
-            for (int i = 0; i < length; ++i)
-            {
-                temp = "";
-                wil::com_ptr<IUIAutomationElement> element;
-                foundElements->GetElement(i, &element);
-                RECT rectangle;
-                BSTR name;
-                CONTROLTYPEID id;
-                element->get_CachedBoundingRectangle(&rectangle);
-                element->get_CachedName(&name);
-                element->get_CachedControlType(&id);
-
-                std::wstring ws(name, SysStringLen(name));
-                string str = string(ws.begin(), ws.end());
-
-
-                temp = to_string(id) + " " + str + " " + to_string(rectangle.left) + " " + to_string(rectangle.top) + " " + to_string(rectangle.right) + " " + to_string(rectangle.bottom);
-
-                list.push_back(temp);
-            }
-
-
-
-            ofstream fw("d:\\metadata\\text.txt", std::ofstream::out);
-
-            if (fw.is_open())
-            {
-                //store array contents to text file
-                for (int i = 0; i < list.size(); i++) {
-                    fw << list[i] << "\n";
-                }
-                fw.close();
-
-            }
-        }
-
-    } while (false);
-    
+        ::SetForegroundWindow(ownHandle);
+        cout << "Please enter out of these options:" << endl;
+        cout << "1. Generate UIA tree and capture screenshot"<<endl;
+        cout << "2. Exit the program"<<endl;
+        cin >> input;
+        ret = ProcessInput(input);
+    } while (ret != 0);
+ 
+    return ret;
 }
