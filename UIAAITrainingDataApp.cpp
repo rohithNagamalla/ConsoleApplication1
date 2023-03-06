@@ -326,11 +326,11 @@ void GenerateUIATree()
     }*/
     if (element != NULL)
     {
-        wil::com_ptr<IUIAutomationCondition> conditionList;
+        wil::com_ptr<IUIAutomationCondition> conditionImage;
         wil::unique_variant control_type;
         control_type.vt = VT_I4;
-        control_type.lVal = UIA_ListControlTypeId;
-        _automation->CreatePropertyCondition(UIA_ControlTypePropertyId, control_type, &conditionList);
+        control_type.lVal = UIA_ImageControlTypeId;
+        _automation->CreatePropertyCondition(UIA_ControlTypePropertyId, control_type, &conditionImage);
 
         wil::com_ptr<IUIAutomationCondition> conditionButton;
         wil::unique_variant control_type1;
@@ -338,17 +338,71 @@ void GenerateUIATree()
         control_type1.lVal = UIA_ButtonControlTypeId;
         _automation->CreatePropertyCondition(UIA_ControlTypePropertyId, control_type1, &conditionButton);
 
-        wil::com_ptr<IUIAutomationCondition> conditionImage;
+        wil::com_ptr<IUIAutomationCondition> conditionCheckbox;
         wil::unique_variant control_type2;
         control_type2.vt = VT_I4;
-        control_type2.lVal = UIA_ImageControlTypeId;
-        _automation->CreatePropertyCondition(UIA_ControlTypePropertyId, control_type2, &conditionImage);
+        control_type2.lVal = UIA_CheckBoxControlTypeId;
+        _automation->CreatePropertyCondition(UIA_ControlTypePropertyId, control_type2, &conditionCheckbox);
+
+        wil::com_ptr<IUIAutomationCondition> conditionRadio;
+        wil::unique_variant control_type3;
+        control_type3.vt = VT_I4;
+        control_type3.lVal = UIA_RadioButtonControlTypeId;
+        _automation->CreatePropertyCondition(UIA_ControlTypePropertyId, control_type3, &conditionRadio);
+
+        wil::com_ptr<IUIAutomationCondition> conditionTextbox;
+        wil::unique_variant control_type4;
+        control_type4.vt = VT_I4;
+        control_type4.lVal = UIA_EditControlTypeId;
+        _automation->CreatePropertyCondition(UIA_ControlTypePropertyId, control_type4, &conditionTextbox);
+
+        wil::com_ptr<IUIAutomationCondition> conditionList;
+        wil::unique_variant control_type5;
+        control_type5.vt = VT_I4;
+        control_type5.lVal = UIA_ListControlTypeId;
+        _automation->CreatePropertyCondition(UIA_ControlTypePropertyId, control_type5, &conditionList);
+
+        wil::com_ptr<IUIAutomationCondition> conditionListitem;
+        wil::unique_variant control_type6;
+        control_type6.vt = VT_I4;
+        control_type6.lVal = UIA_ListItemControlTypeId;
+        _automation->CreatePropertyCondition(UIA_ControlTypePropertyId, control_type6, &conditionListitem);
+
+        wil::com_ptr<IUIAutomationCondition> conditionMenu;
+        wil::unique_variant control_type7;
+        control_type7.vt = VT_I4;
+        control_type7.lVal = UIA_MenuControlTypeId;
+        _automation->CreatePropertyCondition(UIA_ControlTypePropertyId, control_type7, &conditionMenu);
+
+        wil::com_ptr<IUIAutomationCondition> conditionMenuitem;
+        wil::unique_variant control_type8;
+        control_type8.vt = VT_I4;
+        control_type8.lVal = UIA_MenuItemControlTypeId;
+        _automation->CreatePropertyCondition(UIA_ControlTypePropertyId, control_type8, &conditionMenuitem);
 
         wil::com_ptr<IUIAutomationCondition> condition;
-        _automation->CreateOrCondition(conditionList.get(), conditionButton.get(), &condition);
+        _automation->CreateOrCondition(conditionImage.get(), conditionButton.get(), &condition);
+
+        wil::com_ptr<IUIAutomationCondition> condition2;
+        _automation->CreateOrCondition(conditionCheckbox.get(), condition.get(), &condition2);
+
+        wil::com_ptr<IUIAutomationCondition> condition3;
+        _automation->CreateOrCondition(conditionRadio.get(), condition2.get(), &condition3);
+
+        wil::com_ptr<IUIAutomationCondition> condition4;
+        _automation->CreateOrCondition(conditionTextbox.get(), condition3.get(), &condition4);
+
+        wil::com_ptr<IUIAutomationCondition> condition5;
+        _automation->CreateOrCondition(conditionList.get(), condition4.get(), &condition5);
+
+        wil::com_ptr<IUIAutomationCondition> condition6;
+        _automation->CreateOrCondition(conditionListitem.get(), condition5.get(), &condition6);
+
+        wil::com_ptr<IUIAutomationCondition> condition7;
+        _automation->CreateOrCondition(conditionMenu.get(), condition6.get(), &condition7);
 
         wil::com_ptr<IUIAutomationCondition> finalcondition;
-        _automation->CreateOrCondition(conditionImage.get(), condition.get(), &finalcondition);
+        _automation->CreateOrCondition(conditionMenuitem.get(), condition7.get(), &finalcondition);
 
         wil::com_ptr<IUIAutomationCacheRequest> cacheRequest;
         _automation->CreateCacheRequest(&cacheRequest);
@@ -372,6 +426,7 @@ void GenerateUIATree()
             RECT rectangle;
             BSTR name;
             CONTROLTYPEID id;
+            string label;
             element->get_CachedBoundingRectangle(&rectangle);
             element->get_CachedName(&name);
             element->get_CachedControlType(&id);
@@ -379,8 +434,35 @@ void GenerateUIATree()
             std::wstring ws(name, SysStringLen(name));
             string str = string(ws.begin(), ws.end());
 
+            
+            switch (id)
+            {
+                case 50006:
+                    label = "Image"; break;
+                case 50000:
+                    label = "Button"; break;
+                case 50002:
+                    label = "Checkbox"; break;
+                case 50013:
+                    label = "RadioButton"; break;
+                case 50004:
+                    label = "TextBox"; break;
+                case 50008:
+                    label = "List"; break;
+                case 50007:
+                    label = "ListItem"; break;
+                case 50009:
+                    label = "Menu"; break;
+                case 50011:
+                    label = "MenuItem"; break;
+                default:
+                        break;
 
-            temp = to_string(id) + " " + str + " " + to_string(rectangle.left) + " " + to_string(rectangle.top) + " " + to_string(rectangle.right) + " " + to_string(rectangle.bottom);
+            }
+
+            string imgName = string(curTime.begin(), curTime.end());
+
+            temp = imgName + "   " + label + "    " + to_string(rectangle.left) + "    " + to_string(rectangle.top) + "    " + to_string(rectangle.right - rectangle.left) + "    " + to_string(rectangle.bottom - rectangle.top);
 
             list.push_back(temp);
         }
