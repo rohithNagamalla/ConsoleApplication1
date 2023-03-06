@@ -21,7 +21,7 @@
     <Natvis Include="$(MSBuildThisFileDirectory)..\..\natvis\wil.natvis" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ConsoleApplication1.cpp">
+    <ClCompile Include="UIAAITrainingDataApp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
